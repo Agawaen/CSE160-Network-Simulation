@@ -39,18 +39,15 @@ implementation{
         if (len == sizeof(pack)) {
             pack* package = (pack*)payload;
             if (package->protocol == PROTOCOL_NEIGHBOR) {
-                dbg(NEIGHBOR_CHANNEL, "Node %d received package from %d; Sequence number: %d\n", TOS_NODE_ID, package->src, package->seq);
+                dbg(NEIGHBOR_CHANNEL, "Node %d received neighbor discovery request from %d; Sequence number: %d\n", TOS_NODE_ID, package->src, package->seq);
+                makePack(&sendReq, TOS_NODE_ID, package->src, MAX_TTL, PROTOCOL_NEIGHBORREPLY, package->seq, neighborPayload, packet);
+                call SimpleSend.send(sendReq, sendReq.dest);
+                dbg(NEIGHBOR_CHANNEL, "Node %d sending acknowledgement to %d; Sequence number: %d\n", TOS_NODE_ID, package->src, package->seq);
+            }
+            if (package->protocol == PROTOCOL_NEIGHBORREPLY) {
+                dbg(NEIGHBOR_CHANNEL, "Node %d received acknowledgement from %d; Sequence number: %d\n", TOS_NODE_ID, package->src, package->seq);
                 call Hashmap.insert(package->src, sequenceNum);
             }
-            // if (package->protocol == PROTOCOL_NEIGHBOR) {
-            //     if (package->payload == TOS_NODE_ID) {
-            //         dbg(NEIGHBOR_CHANNEL, "Package returned to %d by %d; Sequence number: %d\n", TOS_NODE_ID, sendReq.dest, sendReq.seq);
-            //     } else {
-            //         makePack(&sendReq, TOS_NODE_ID, package->src, MAX_TTL, PROTOCOL_NEIGHBOR, package->seq, neighborPayload, packet);
-            //         call SimpleSend.send(sendReq, sendReq.dest);
-            //         dbg(NEIGHBOR_CHANNEL, "Returning package to %d from %d; Sequence number: %d\n", sendReq.dest, TOS_NODE_ID, sendReq.seq);
-            //     }
-            // }
         }
     }
 
