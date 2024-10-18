@@ -71,7 +71,7 @@ implementation{
                 } else {
                     if (package->TTL >= 0) { // Check TTL expired or not
                         package->TTL--; 
-                        dbg(FLOODING_CHANNEL, "Forwarding packet info from node: %d\n\t\t | TTL: %d |\n", TOS_NODE_ID, package->TTL);
+                        dbg(FLOODING_CHANNEL, "Forwarding packet info from node: %d | TTL: %d |\n", TOS_NODE_ID, package->TTL);
                         call SimpleSend.send(*package, AM_BROADCAST_ADDR); // Forward to all neighbors
                     } else {
                         dbg(FLOODING_CHANNEL, "TTL expired... DROP PACKET\n");
