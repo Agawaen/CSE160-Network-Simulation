@@ -30,7 +30,7 @@ implementation {
     uint8_t payloadLength = sizeof(linkStatePayload);
     pack sendReq;
 
-    uint16_t neighborGraph[MAX_NEIGHBORS][MAX_NEIGHBORS];
+    uint8_t neighborGraph[MAX_NEIGHBORS][MAX_NEIGHBORS];
 
     uint8_t* tempPayload = ""; // just for testing
 
@@ -57,31 +57,41 @@ implementation {
     }
 
     event void LSATimer.fired() {
-        // makePack(&sendReq, TOS_NODE_ID, 0, MAX_TTL, PROTOCOL_LINKSTATE, seqNum, linkStatePayload, payloadLength);
-        // call SimpleSend.send(sendReq, AM_BROADCAST_ADDR);
-        // seqNum++;
-        uint8_t i;
-        uint8_t j;
+    uint8_t i;
+    uint8_t j;
+    uint8_t nodeCount = 0;
+    bool hasConnection;
 
-        uint8_t* tempGraph = call Flooding.getNeighborGraph();
-        dbg(ROUTING_CHANNEL, "Printing Neighbor Graph\n");
-        for (i = 0; i < MAX_NEIGHBORS; i++) {
-            dbg(ROUTING_CHANNEL, "Neighbors of %d\n", i);
-            for (j = 0; j < MAX_NEIGHBORS; j++) {
-                neighborGraph[i][j] = tempGraph[i * MAX_NEIGHBORS + j];
-                dbg(ROUTING_CHANNEL, "%d: %d\n", j, neighborGraph[i][j]);
+    uint8_t* tempGraph = call Flooding.getNeighborGraph();
+    dbg(ROUTING_CHANNEL, "LSATimer: Getting neighbor graph from Flooding\n");
+    
+    for (i = 0; i < MAX_NEIGHBORS; i++) {
+        dbg(ROUTING_CHANNEL, "LSATimer: Row %d neighbors:", i);
+        hasConnection = FALSE;
+        for (j = 0; j < MAX_NEIGHBORS; j++) {
+            uint16_t idx = i * MAX_NEIGHBORS + j;
+            // Normalize the values: if it's greater than 0, set to 1
+            if (tempGraph[idx] > 0) {
+                neighborGraph[i][j] = 1;
+                dbg(ROUTING_CHANNEL, " %d", j);
+                hasConnection = TRUE;
+            } else {
+                neighborGraph[i][j] = 0;
             }
         }
-        
-        if (isNeighborGraphFilled()) {
-            dbg(ROUTING_CHANNEL, "Neighbor graph filled; Creating Routing Table\n");
-            loadDistanceTable();
-        } else {
-            dbg(ROUTING_CHANNEL, "Neighbor graph not filled; Waiting until next timer fire\n");
+        if (hasConnection) {
+            nodeCount++;
         }
-
-
+        dbg(ROUTING_CHANNEL, "\n");
     }
+    
+    if (isNeighborGraphFilled()) {
+        dbg(ROUTING_CHANNEL, "Neighbor graph filled; Creating Routing Table\n");
+        loadDistanceTable();
+    } else {
+        dbg(ROUTING_CHANNEL, "Neighbor graph not filled; Current nodes with connections: %d\n", nodeCount);
+    }
+}
 
     void makePack(pack *Package, uint16_t src, uint16_t dest, uint16_t TTL, uint16_t protocol, uint16_t seq, uint8_t* payload, uint8_t length){
         Package->src = src; // Link Layer Head
@@ -120,15 +130,65 @@ implementation {
     // }
 
     void loadDistanceTable() {
-        uint8_t i;
+    uint8_t i;
+    uint8_t j;
+    uint8_t nextHop;
+    uint8_t numNeighbors = 0;
+    bool hasValidPath;
 
-        call Dijkstra.make(neighborGraph, TOS_NODE_ID);
-
-        dbg(ROUTING_CHANNEL, "Printing routing table\n");
-        for (i = 0; i < MAX_NEIGHBORS; i++) {
-            dbg(ROUTING_CHANNEL, "%d -> %d\n", i, call Dijkstra.getNextHop(i));
+    // Debug the neighbor graph first
+    dbg(ROUTING_CHANNEL, "Direct neighbors of node %d:", TOS_NODE_ID);
+    for (i = 0; i < MAX_NEIGHBORS; i++) {
+        if (neighborGraph[TOS_NODE_ID][i] == 1) {
+            dbg(ROUTING_CHANNEL, " %d", i);
+            numNeighbors++;
         }
     }
+    dbg(ROUTING_CHANNEL, "\nTotal direct neighbors: %d\n", numNeighbors);
+
+    // Run Dijkstra's algorithm
+    call Dijkstra.make((uint8_t*)neighborGraph, TOS_NODE_ID);
+
+    dbg(ROUTING_CHANNEL, "Printing routing table for node %d\n", TOS_NODE_ID);
+    
+    // Generate routing table
+    for (i = 0; i < MAX_NEIGHBORS; i++) {
+        if (i == TOS_NODE_ID) {
+            dbg(ROUTING_CHANNEL, "%d -> %d (self)\n", i, TOS_NODE_ID);
+            continue;
+        }
+
+        nextHop = call Dijkstra.getNextHop(i);
+        hasValidPath = FALSE;
+
+        // If destination is a direct neighbor
+        if (neighborGraph[TOS_NODE_ID][i] == 1) {
+            nextHop = i;
+            hasValidPath = TRUE;
+            dbg(ROUTING_CHANNEL, "%d -> %d (direct)\n", i, nextHop);
+        }
+        // If Dijkstra found a valid path
+        else if (nextHop != UINT8_MAX && nextHop != TOS_NODE_ID && neighborGraph[TOS_NODE_ID][nextHop] == 1) {
+            hasValidPath = TRUE;
+            dbg(ROUTING_CHANNEL, "%d -> %d (via Dijkstra)\n", i, nextHop);
+        }
+        // Try to find a path through neighbors
+        else {
+            for (j = 0; j < MAX_NEIGHBORS; j++) {
+                if (neighborGraph[TOS_NODE_ID][j] == 1 && neighborGraph[j][i] == 1) {
+                    nextHop = j;
+                    hasValidPath = TRUE;
+                    dbg(ROUTING_CHANNEL, "%d -> %d (via neighbor)\n", i, nextHop);
+                    break;
+                }
+            }
+        }
+
+        if (!hasValidPath) {
+            dbg(ROUTING_CHANNEL, "%d -> %d (no route)\n", i, TOS_NODE_ID);
+        }
+    }
+}
 
     void updateNeighborGraph(uint16_t neighborTable[], uint16_t src) {
         uint16_t i;
