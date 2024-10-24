@@ -73,7 +73,7 @@ implementation {
             // Normalize the values: if it's greater than 0, set to 1
             if (tempGraph[idx] > 0) {
                 neighborGraph[i][j] = 1;
-                dbg(ROUTING_CHANNEL, " %d", j);
+                dbg(ROUTING_CHANNEL, " %d\n", j);
                 hasConnection = TRUE;
             } else {
                 neighborGraph[i][j] = 0;
@@ -133,12 +133,13 @@ implementation {
     uint8_t i;
     uint8_t j;
     uint8_t nextHop;
-    uint8_t numNeighbors = 0;
+    uint8_t numNeighbors;
     bool hasValidPath;
 
     // Debug the neighbor graph first
     dbg(ROUTING_CHANNEL, "Direct neighbors of node %d:", TOS_NODE_ID);
     for (i = 0; i < MAX_NEIGHBORS; i++) {
+        dbg(ROUTING_CHANNEL, "neighborGraph[%d][%d] = %d\n", TOS_NODE_ID, i, neighborGraph[TOS_NODE_ID][i]);
         if (neighborGraph[TOS_NODE_ID][i] == 1) {
             dbg(ROUTING_CHANNEL, " %d", i);
             numNeighbors++;
