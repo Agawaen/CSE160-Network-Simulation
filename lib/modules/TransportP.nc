@@ -91,7 +91,7 @@ implementation{
         */
         return 0;
         }
-        
+        dbg(TRANSPORT_CHANNEL, "Writing... Socket %d is established\n", fd);
         if (bufflen < SOCKET_BUFFER_SIZE){
             write = bufflen;
         }
