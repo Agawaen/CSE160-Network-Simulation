@@ -139,7 +139,7 @@ implementation{
         uint16_t dest;
         uint8_t *payload;
 
-        if (fd >= MAX_NUM_OF_SOCKETS || fd < 0)
+        if (fd >= MAX_NUM_OF_SOCKETS)
             return FAIL;
 
         currentSocket = &sockets[fd];
