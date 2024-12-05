@@ -3,7 +3,7 @@
 #define SLIDING_WINDOW_SIZE 1
 #define TCP_TIMER_LENGTH 2000
 #define TEST_SERVER_NODE 1
-#define MAX_RETRIES 100
+#define MAX_RETRIES 10
 #define TEST_STRING "abcdefghijklmnopqrstuvwxyz"
 
 #include "../../includes/socket.h"
@@ -93,7 +93,7 @@ implementation{
             dbg(TRANSPORT_CHANNEL, "[Transport.accept] Socket %d now established connection with %d\n", fd, currentSocket->dest.addr);
                 return fd;
         }
-        // dbg(TRANSPORT_CHANNEL, "[Transport.accept] Socket %d cannot accept connection (no SYN recieved)\n", fd);
+        dbg(TRANSPORT_CHANNEL, "[Transport.accept] Socket %d cannot accept connection (no SYN recieved)\n", fd);
         return NULL_SOCKET;
     }
 
@@ -152,6 +152,7 @@ implementation{
   
                     sendSynAck(p->src);
                     sockets[serverSocket].state = SYN_RCVD;
+                    dbg(TRANSPORT_CHANNEL, "Socket %d state changed to %d (SYN_RCVD)\n", serverSocket, sockets[serverSocket].state);
                     // dbg(TRANSPORT_CHANNEL, "%d: %d\n", serverSocket, sockets[fd].state);
                 } else {
                     dbg(TRANSPORT_CHANNEL, "Failed to bind server socket\n");
@@ -177,7 +178,8 @@ implementation{
 
                 if (sockets[fd].state == SYN_SENT || sockets[fd].state == SYN_RCVD) {
                     sockets[fd].state = ESTABLISHED;
-                    dbg(TRANSPORT_CHANNEL, "Server established\n");
+                    dbg(TRANSPORT_CHANNEL, "Socket %d state changed to %d (ESTABLISHED)\n", fd, sockets[fd].state);
+                    // dbg(TRANSPORT_CHANNEL, "Server established\n");
                     sendAck(p->src);
                 }
 
@@ -238,6 +240,7 @@ implementation{
         //Replace all with new helper function sendSYN()
         synPack.flag = SYN;
         sockets[fd].state = SYN_SENT;
+        dbg(TRANSPORT_CHANNEL, "Socket %d state changed to %d (SYN_SENT)\n", fd, sockets[fd].state);
 
         call Transport.write(fd, TEST_STRING, sizeof(TEST_STRING));
         
@@ -364,7 +367,12 @@ implementation{
                 
                 case SYN_SENT:
                     // Retransmit SYN if waiting
-                    if (synRetry < MAX_RETRIES){
+                    if (synRetry >= MAX_RETRIES) {
+                        dbg(TRANSPORT_CHANNEL, "Socket %d failed to establish after %d retries. Closing socket.\n", i, synRetry);
+                        currentSocket.state = CLOSED; // Reset the state
+                        synRetry = 0; // Reset retry count
+                    } else {
+                        dbg(TRANSPORT_CHANNEL, "Retransmitting SYN for Socket %d (Retry: %d)\n", i, synRetry);
                         sendSyn(currentSocket.dest.addr);
                         synRetry++;
                     }
